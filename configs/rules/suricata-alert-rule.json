@@ -1,0 +1,11 @@
+{
+  "rule_name": "Suricata Alert Detected — Potential Network Intrusion",
+  "rule_type": "elasticsearch",
+  "description": "Alert when matches for high-severity Suricata signatures are found during the latest query run.",
+  "index_pattern": "suricata-*",
+  "schedule": {
+    "interval": "1m"
+  },
+  "query": "event.dataset: \"suricata\" AND suricata.eve.alert.severity <= 2",
+  "actions": []
+}
