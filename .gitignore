@@ -1,3 +1,4 @@
 .idea/
 *.log
 .env
+.git_standalone_backup/

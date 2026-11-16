@@ -11,6 +11,13 @@ A local, zero-cloud Security Operations Center (SOC) telemetry and analytics pla
 
 ---
 
+## 🎯 Production Deliverable: Mini-SOC Overview Dashboard
+
+![Mini-SOC Overview Dashboard — Suricata, osquery, Kubernetes](screenshots/Dash.png)
+*Figure 1: Production Kibana Mini-SOC Overview Dashboard correlating Network Intrusion Detection (Suricata), Endpoint Host Telemetry (osquery), and Container Workload Metrics (Kubernetes).*
+
+---
+
 ## Technical Architecture & Blueprint
 
 The architecture is designed to fulfill strict local infrastructure constraints (no cloud provider dependencies) by streaming event data from three distinct telemetry domains through custom Logstash ingestion pipelines into an Elasticsearch cluster.
@@ -144,7 +151,7 @@ filter {
 
   grok {
     match => { "message" => "%{IPORHOST:client_ip} - - \[%{HTTPDATE:timestamp}\] \"%{WORD:http_method} %{URIPATHPARAM:request_path} HTTP/%{NUMBER:http_version}\" %{NUMBER:response_code} %{NUMBER:bytes_sent}" }
-    tag_on_failure => ["_griokparsefailure_skipped"]
+    tag_on_failure => ["_grokparsefailure_skipped"]
   }
 }
 
@@ -175,6 +182,17 @@ The platform incorporates automated detection rules configured in Kibana Alertin
   ```
 - **Severity Scope**: Captures High (`severity: 1`) and Medium (`severity: 2`) NIDS alerts, such as exploit attempts, malware C2 traffic, command injection signatures, and unauthorized network probes.
 
+### Detection Rule Implementation Evidence
+
+![Selecting Rule Type in Kibana](screenshots/Rule.png)
+*Figure 2: Selecting Elasticsearch query rule type in Kibana Alerting & Insights.*
+
+![Suricata Detection Rule Creation Toast](screenshots/Suricata-Rule.png)
+*Figure 3: Confirmation toast verifying successful creation and registration of the Suricata NIDS query detection rule.*
+
+![Active Suricata Detection Rule Details](screenshots/Rule-Dash.png)
+*Figure 4: Active Suricata detection rule dashboard in Kibana Stack Management displaying enabled state, 1-minute execution interval, and zero failures.*
+
 ---
 
 ## Operational Log & Troubleshooting Record
@@ -186,7 +204,10 @@ Before deploying pipelines to production, each configuration file was syntax-tes
 ```bash
 sudo /usr/share/logstash/bin/logstash --config.test_and_exit -f /etc/logstash/conf.d/osquery.conf
 ```
-*Result*: `Configuration OK` — Config Validation Result: OK (`screenshots/Troubleshooting.png`).
+*Result*: `Configuration OK` — Config Validation Result: OK.
+
+![Logstash Configuration Validation & Field Mapping Test](screenshots/Troubleshooting.png)
+*Figure 5: Terminal verification showing Logstash configuration test exiting with `Configuration OK` and Elasticsearch mapping audit.*
 
 ### 2. Resolving File Permission & Access Issues (`EACCES`)
 Initial ingestion runs faced file access failures because `/var/log/osquery/osqueryd.results.log` was created with restrictive permissions (`-rw-r----- root root`). The issue was resolved by adjusting permissions and adding the `logstash` system user to the `root` group:
@@ -195,29 +216,40 @@ sudo chmod 644 /var/log/osquery/osqueryd.results.log
 sudo usermod -aG root logstash
 sudo systemctl restart logstash
 ```
-*Verification*: System journal logs (`journalctl -u logstash`) confirmed successful execution of all 3 pipelines (`screenshots/T2.png`):
+*Verification*: System journal logs (`journalctl -u logstash`) confirmed successful execution of all 3 pipelines:
 ```text
 Pipelines running {:count=>3, :running_pipelines=>[:suricata, :kubernetes, :osquery], :non_running_pipelines=>[]}
 ```
+
+![Logstash Multi-Pipeline Running Journalctl](screenshots/T2.png)
+*Figure 6: Systemd journal output (`journalctl -u logstash -n 50`) confirming all 3 pipelines (`suricata`, `kubernetes`, and `osquery`) running without failure.*
 
 ### 3. Elasticsearch Index Health & Mapping Audit
 Live index creation and document counts were verified via the Elasticsearch REST API:
 ```bash
 curl -k -u elastic:${ELASTIC_PASSWORD} "https://localhost:9200/_cat/indices?"
 ```
-*Indexed Telemetry Summary* (`screenshots/T3.png`, `screenshots/Troubleshooting.png`):
+*Indexed Telemetry Summary*:
 - `suricata-2026.07.11`: 517 documents (6.6 MB)
 - `kubernetes-2026.07.11`: 115 documents (293.6 KB)
 - `osquery-2026.07.11`: 7,258 documents (3.1 MB)
 
-Field mapping verification confirmed correct indexing of metadata attributes like `@timestamp`, `data_source`, `cmdline`, `path`, and `host.name`.
+![Index Verification and Permission Resolution](screenshots/T3.png)
+*Figure 7: Terminal session resolving `/var/log/osquery/osqueryd.results.log` permissions and querying `_cat/indices` to confirm healthy document ingestion across indices.*
 
 ---
 
-## Unified Kibana Dashboard
+## Unified Kibana Dashboard Walkthrough
 
-The **Mini-SOC Overview — Suricata, osquery, Kubernetes** dashboard (`screenshots/Dash.png`) aggregates telemetry across network, endpoint, and container infrastructure:
+The **Mini-SOC Overview — Suricata, osquery, Kubernetes** dashboard aggregates telemetry across network, endpoint, and container infrastructure:
 
+![Kibana Unified Mini-SOC Dashboard](screenshots/Dash.png)
+*Figure 8: Flagship Mini-SOC Overview dashboard displaying real-time correlated telemetry.*
+
+![Kibana Dashboard Panel Layout & Configuration](screenshots/Dashboard.png)
+*Figure 9: Dashboard panel layout and visualization editor in Kibana.*
+
+### Panel Details & Metrics:
 1. **Suricata Alerts by Type**: A time-series histogram tracking network event distribution across categories (`stats`, `dns`, `flow`, and signature alerts).
 2. **osquery Activity: Processes & Ports**: Dual-metric time-series panel displaying total active processes (`running_processes`) vs open network sockets (`listening_ports`).
 3. **Kubernetes HTTP Response Codes**: Histogram categorizing web workload status codes (`200 OK` vs `404 Not Found`).
@@ -249,8 +281,8 @@ Elastic-Mini-SOC/
     ├── Dash.png                               # Unified Mini-SOC Kibana dashboard
     ├── Dashboard.png                          # Dashboard panel configuration view
     ├── Rule.png                               # Kibana detection rule type selection
-    ├── Rule DAsh.png                          # Active Suricata detection rule details
-    ├── Suricata Rule.png                      # Kibana detection rule setup state
+    ├── Rule-Dash.png                          # Active Suricata detection rule details
+    ├── Suricata-Rule.png                      # Kibana detection rule setup state
     ├── T2.png                                 # Logstash multi-pipeline running status log
     ├── T3.png                                 # Permission troubleshooting & index verification
     └── Troubleshooting.png                    # Config test & Elasticsearch mapping verification
